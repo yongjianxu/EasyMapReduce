@@ -5,7 +5,10 @@ import org.apache.spark.SparkContext
 
 private[easymr] object EasyContext {
 
-  def create(appName: String, local: Boolean) = {
+  def create(
+      appName: String, 
+      linesPerRecord: Int,
+      local: Boolean) = {
     val conf = new SparkConf()
       .setAppName(appName)
     if (local) {
@@ -18,7 +21,9 @@ private[easymr] object EasyContext {
     if (System.getenv("TMPDIR") != null) {
       conf.setExecutorEnv("TMPDIR", System.getenv("TMPDIR"))
     }
-    new SparkContext(conf)
+    val sc = new SparkContext(conf)
+    sc.hadoopConfiguration.setInt("lineinputformat.linespermap", linesPerRecord)
+    sc
   }
 
 }

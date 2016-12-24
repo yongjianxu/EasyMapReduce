@@ -11,6 +11,9 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD.rddToPairRDDFunctions
 
 import scopt.OptionParser
+import org.apache.hadoop.io.LongWritable
+import org.apache.hadoop.io.Text
+import org.apache.hadoop.mapred.lib.NLineInputFormat
 
 private[easymr] class RDDMultipleTextOutputFormat extends MultipleTextOutputFormat[Any, Any] {
   override def generateActualKey(key: Any, value: Any): Any =
@@ -28,7 +31,8 @@ case class EasyMapParams(
   inputPath: String = null,
   outputPath: String = null,
   wholeFiles: Boolean = false,
-  local: Boolean = false)
+  local: Boolean = false,
+  linesPerRecord: Int = 1)
 
 object EasyMapCLI {
 
@@ -39,6 +43,7 @@ object EasyMapCLI {
     //Start Spark context
     val sc = EasyContext.create(
       appName = s"Map: ${params.command}",
+      params.linesPerRecord,
       params.local)
 
     //Read input data
@@ -111,11 +116,11 @@ object EasyMapCLI {
       }
     } else {
       val rdd = if (defaultParallelism > 0) {
-        sc.textFile(inputPath, defaultParallelism)
+        sc.hadoopFile[LongWritable, Text, NLineInputFormat](inputPath, defaultParallelism)
       } else {
-        sc.textFile(inputPath)
+        sc.hadoopFile[LongWritable, Text, NLineInputFormat](inputPath)
       }
-      rdd.map((inputPath, _))
+      rdd.map{ case(lw,txt) => (inputPath, txt.toString) }
     }
   }
 
@@ -140,6 +145,9 @@ object EasyMapCLI {
           "the file/files in input is/are splitted line by line, and the command is executed in parallel " +
           "on each line of the file.")
         .action((_, c) => c.copy(wholeFiles = true))
+      opt[Int]("linesPerRecord")
+        .text(s"Lines to parse in each record (default: 1).")
+        .action((x, c) => c.copy(linesPerRecord = x))
       opt[Unit]("local")
         .text("set to run in local mode (useful for testing purpose).")
         .action((_, c) => c.copy(local = true))

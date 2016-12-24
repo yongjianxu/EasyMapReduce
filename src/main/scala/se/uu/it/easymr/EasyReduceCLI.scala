@@ -3,6 +3,9 @@ package se.uu.it.easymr
 import org.apache.log4j.Logger
 
 import scopt.OptionParser
+import org.apache.hadoop.io.LongWritable
+import org.apache.hadoop.io.Text
+import org.apache.hadoop.mapred.lib.NLineInputFormat
 
 case class EasyReduceParams(
   command: String = null,
@@ -10,7 +13,8 @@ case class EasyReduceParams(
   inputPath: String = null,
   outputPath: String = null,
   wholeFiles: Boolean = false,
-  local: Boolean = false)
+  local: Boolean = false,
+  linesPerRecord: Int = 1)
 
 object EasyReduceCLI {
 
@@ -21,6 +25,7 @@ object EasyReduceCLI {
     //Start Spark context
     val sc = EasyContext.create(
       appName = s"Reduce: ${params.command}",
+      params.linesPerRecord,
       params.local)
 
     //Read input data
@@ -34,11 +39,12 @@ object EasyReduceCLI {
       }
       rdd.map(_._2) //remove file name
     } else {
-      if (defaultParallelism > 0) {
-        sc.textFile(params.inputPath, defaultParallelism)
+      val rdd = if (defaultParallelism > 0) {
+        sc.hadoopFile[LongWritable, Text, NLineInputFormat](params.inputPath, defaultParallelism)
       } else {
-        sc.textFile(params.inputPath)
+        sc.hadoopFile[LongWritable, Text, NLineInputFormat](params.inputPath)
       }
+      rdd.map{ case(lw,txt) => txt.toString }
     }
 
     //Reduce data
@@ -76,6 +82,9 @@ object EasyReduceCLI {
           "the file/files in input is/are splitted line by line, and the command is executed in parallel " +
           "on each line of the file.")
         .action((_, c) => c.copy(wholeFiles = true))
+      opt[Int]("linesPerRecord")
+        .text(s"Lines to parse in each record (default: 1).")
+        .action((x, c) => c.copy(linesPerRecord = x))
       opt[Unit]("local")
         .text("set to run in local mode (useful for testing purpose).")
         .action((_, c) => c.copy(local = true))

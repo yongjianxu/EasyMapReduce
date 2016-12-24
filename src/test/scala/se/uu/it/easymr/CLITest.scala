@@ -139,6 +139,29 @@ class CLITest
     assert(sumOut.toInt == counts.reduce(_ + _))
 
   }
+  
+  test("easy map, multiline") {
+
+    val params = EasyMapParams(
+      command = "rev /input | tr -d '\\n' > /output",
+      imageName = "ubuntu:xenial",
+      local = true,
+      linesPerRecord = 2,
+      inputPath = getClass.getResource("dna/dna.txt").getPath,
+      outputPath = tempDir.getAbsolutePath + "/rev.txt")
+      
+    EasyMapCLI.run(params)
+
+    val reverseTest = Source.fromFile(getClass.getResource("dna/dna.txt").getPath)
+      .getLines.map(_.reverse)
+      
+    val sc = new SparkContext(conf)
+    val reverseOut = sc.textFile(tempDir.getAbsolutePath + "/rev.txt").collect
+    sc.stop
+
+    assert(reverseTest.toSet == reverseOut.toSet)
+
+  }
 
   override def afterAll {
     FileUtils.deleteDirectory(tempDir)
